@@ -4,7 +4,10 @@ package main
 // glen.newton@gmail.com
 
 import (
+	"bufio"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -22,24 +25,35 @@ var filesRpmExec = []string{"rpm", "-qlvp"}
 func usage(name string) {
 	fmt.Println("\n\t" + name + ": Find executables and libraries in RPMs to populate PATH and LD_LIBRARY_PATH")
 	fmt.Println("Usage: " + name + " <rpmfile0> ... <rpmfileN>")
-	fmt.Println("\t Returns 2 lines with each of the following followed by the paths found for each:  \"LD PATH: \"   \"PATH: \" \n")
+	fmt.Println("\t Returns 2 lines with each of the following followed by the paths found for each:   \"PATH: \"   \"LD PATH: \"  \n")
+	flag.Usage()
+}
+
+var filesFromStdin = false
+
+func init() {
+	flag.BoolVar(&filesFromStdin, "c", filesFromStdin, "Files one per line in stdin")
+	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
 
-	if len(os.Args) < 2 {
-		usage(os.Args[0])
+	files, err := getFileNames(filesFromStdin)
+	if err != nil {
+		os.Exit(42)
 		return
 	}
 
-	err := checkFileNamesExist(os.Args[1:])
+	err = checkFileNamesExist(files)
 	if err != nil {
+		os.Exit(42)
 		return
 	}
 
 	fileLineChannel := make(chan string, 200)
 
-	go findRpmFiles(fileLineChannel, filesRpmExec, os.Args)
+	go findRpmFiles(fileLineChannel, filesRpmExec, files)
 
 	pathChannel := make(chan *PathInfo, 200)
 
@@ -69,12 +83,12 @@ func checkFileNamesExist(fileNames []string) error {
 	for _, fileName := range fileNames {
 		file, err := os.Open(fileName) // For read access.
 		if err != nil {
-			log.Print("Problem opening file: " + fileName)
+			log.Print("Problem opening file: [" + fileName + "]")
 			return err
 		}
 		fi, err := file.Stat()
 		if err != nil {
-			log.Print("Problem stat'ing file: " + fileName)
+			log.Print("Problem stat'ing file: [" + fileName + "]")
 			return err
 		}
 
@@ -106,23 +120,12 @@ func (ie *InternalError) Error() string {
 }
 
 func findRpmFiles(fileLineChannel chan string, filesRpmExec []string, args []string) {
-	// rpmFiles := []string{
-	// 	"/home/newtong/work/rpms-biocluster/branches/rocks-6.1/mira/dependencies/gperftools-devel-2.0-3.el6.2.x86_64.rpm",
-	// 	"/home/newtong/work/R/R2/R-2.15.1-1.x86_64.rpm",
-	// 	"/home/newtong/work/R/R2/RPMS/x86_64/R2-core-2.15.1-2.x86_64.rpm",
-	// 	"/home/newtong/work/rpms-biocluster/branches/rocks-6.1/sparsehash/sparsehash-2.0.2-1.noarch.rpm",
-	// }
-
 	var count = 0
 	doneChannel := make(chan bool, 20)
-	for i, rpmFile := range args {
-		if i == 0 {
-			continue
-		}
+	for _, rpmFile := range args {
 		count += 1
 		prog := append(filesRpmExec, rpmFile)
 		runExec(prog, fileLineChannel, doneChannel)
-		//fmt.Println(prog)
 	}
 
 	for i := 0; i < count; i++ {
@@ -150,9 +153,7 @@ func makePaths(fileLineChan chan string, pathChannel chan *PathInfo) {
 			} else {
 				path.isLibrary = false
 			}
-
 			path.path = pathString
-			//fmt.Println(isExecutable, isLibrary, path, v)
 			pathChannel <- path
 		}
 	}
@@ -168,6 +169,7 @@ func extract(p string) (bool, bool, string) {
 	if len(parts) == 9 {
 		pathPart = parts[8]
 	} else {
+		// bug in rpm...
 		if len(parts) == 8 {
 			pathPart = parts[7]
 			fmt.Println("#  " + p)
@@ -187,6 +189,31 @@ func extract(p string) (bool, bool, string) {
 	}
 
 	return isExecutableFile, isLibrary, path
+}
+
+func getFileNames(filesFromStdin bool) ([]string, error) {
+	var files []string
+	if !filesFromStdin {
+		// read files line by line from stdin
+		files = flag.Args()[0:]
+	} else {
+		// or command line
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			line, err := reader.ReadString('\n')
+
+			if err != nil {
+				if err == io.EOF {
+					break
+				} else {
+					log.Fatal(err)
+					return nil, err
+				}
+			}
+			files = append(files, line[0:len(line)-1])
+		}
+	}
+	return files, nil
 }
 
 func makePath(fullpath string) string {
