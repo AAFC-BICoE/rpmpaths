@@ -13,10 +13,10 @@ Usage: ./rpmpaths <-c> | <rpmfile0> ... <rpmfileN>
 
 	 Returns 2 lines with each of the following followed by the paths found for each:  "LD PATH: "   "PATH: " 
 
-        Example:
-	$ find . -name \*.rpm -print | rpmpaths -c
-	PATH=/opt/bio/gdal/bin:/opt/bio/geos/bin
-	LD_LIBRARY_PATH=/opt/bio/gdal/lib:/opt/bio/geos/lib:/opt/bio/zlib/lib:/usr/lib64
+	 Example:
+	 $ find . -name \*.rpm -print | rpmpaths -c
+	 PATH=/opt/bio/gdal/bin:/opt/bio/geos/bin
+	 LD_LIBRARY_PATH=/opt/bio/gdal/lib:/opt/bio/geos/lib:/opt/bio/zlib/lib:/usr/lib64
 
 ```
 
