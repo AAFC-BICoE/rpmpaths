@@ -24,6 +24,9 @@ Usage
 Copyright
 ========
 Copyright (c) 2014 Government of Canada
+
 Developed at Agriculture and Agri-Food Canada
+
 Developed by Glen Newton
+
 MIT License (Open Source)
